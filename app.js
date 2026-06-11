@@ -446,142 +446,204 @@ function renderTimeline(groupedTimeline) {
   const container = document.getElementById('timeline-list');
   container.innerHTML = '';
 
-  const hasEvents = groupedTimeline.some(d => d.events.length > 0);
-  if (!hasEvents) {
+  // 1. Get list of target accounts that are not credit cards (deposit, cash, other)
+  const targetAccounts = state.accounts.filter(acc => acc.type !== 'credit');
+
+  if (targetAccounts.length === 0) {
     container.innerHTML = `
-      <div class="glass-panel" style="text-align:center;padding:40px 20px;color:var(--text-secondary);">
-        <p style="font-size:24px;margin-bottom:12px;">📅</p>
-        <p>表示期間内の予定はありません</p>
-        <p style="font-size:12px;margin-top:8px;color:var(--text-muted);">「+」ボタンから収入・支出予定を登録してください</p>
+      <div class="glass-panel" style="text-align:center;padding:40px;color:var(--text-secondary);width:100%;">
+        <p>登録された口座がありません。「口座・資産」タブから口座を追加してください。</p>
       </div>`;
     return;
   }
 
   const fragment = document.createDocumentFragment();
 
-  for (const day of groupedTimeline) {
-    if (day.events.length === 0 && !day.isToday) continue;
+  // 2. Generate vertical timeline columns for each deposit/cash/other account
+  for (const acc of targetAccounts) {
+    const column = document.createElement('div');
+    column.className = 'timeline-column';
 
-    const dateGroup = document.createElement('div');
-    dateGroup.className = 'timeline-date-group';
+    // Column Header (Account Name, Type Badge, Current Balance)
+    const columnHeader = document.createElement('div');
+    columnHeader.className = 'column-header';
+    const typeLabels = { deposit: '預金', cash: '現金', other: 'その他' };
+    const typeLabel = typeLabels[acc.type] || 'その他';
+    columnHeader.innerHTML = `
+      <div class="column-title">
+        <span class="account-badge ${acc.type}">${typeLabel}</span>
+        <strong>${escapeHtml(acc.name)}</strong>
+      </div>
+      <div class="column-balance">
+        ${formatCurrency(acc.balance)}
+      </div>
+    `;
+    column.appendChild(columnHeader);
 
-    // Date header
-    const header = document.createElement('div');
-    header.className = `timeline-date-header ${day.isToday ? 'today' : ''}`;
-    header.innerHTML = `
-      <span class="timeline-date-dot"></span>
-      <strong>${formatDateJP(day.date, day.isToday)}</strong>
-      <span style="font-size:11px;font-weight:normal;color:var(--text-muted);">${day.date}</span>`;
-    dateGroup.appendChild(header);
+    // Column Timeline events container
+    const colTimeline = document.createElement('div');
+    colTimeline.className = 'column-timeline';
 
-    // Event cards
-    for (const evt of day.events) {
-      const card = document.createElement('div');
-      card.className = `timeline-event-card${evt.isInsufficient ? ' alert-card' : ''}`;
-      card.setAttribute('role', 'button');
-      card.setAttribute('tabindex', '0');
-      card.dataset.eventId = evt.id;
-      card.dataset.eventType = evt.type;
+    let hasColEvents = false;
 
-      const { icon, typeClass, flowText } = getEventDisplay(evt);
-      const balanceHtml = getBalanceDisplayHtml(evt);
+    for (const day of groupedTimeline) {
+      // Filter events affecting ONLY this specific account
+      const colEvents = day.events.filter(evt => {
+        // (A) Income / Expense / Reimbursement direct matching
+        if (evt.accountId === acc.id && evt.type !== 'credit_bill') {
+          return true;
+        }
+        // (B) Credit bills linked to this account
+        if (evt.type === 'credit_bill') {
+          const cardAcc = state.accounts.find(a => a.id === evt.accountId);
+          if (cardAcc && cardAcc.linkedAccountId === acc.id) {
+            return true;
+          }
+        }
+        // (C) Transfers where this account is either from or to
+        if (evt.type === 'transfer') {
+          if (evt.fromAccountId === acc.id || evt.toAccountId === acc.id) {
+            return true;
+          }
+        }
+        return false;
+      });
 
-      const amountSign = (evt.type === 'income' || evt.type === 'reimbursement') ? '+' : '-';
+      // Always draw a date header if there are events, or if it is "Today"
+      if (colEvents.length > 0 || day.isToday) {
+        hasColEvents = true;
 
-      card.innerHTML = `
-        <div class="event-card-left">
-          <div class="event-icon-badge ${typeClass}">${icon}</div>
-          <div class="event-info-wrapper">
-            <span class="event-title">${escapeHtml(evt.name)}</span>
-            <span class="event-account-flow">${flowText}</span>
-            ${balanceHtml}
-          </div>
-        </div>
-        <div class="event-card-right">
-          <span class="event-amount ${typeClass}">${amountSign}${evt.amount.toLocaleString()}円</span>
-          <div class="event-projected-total">予測手元: ${formatCurrency(evt.totalAssetsSnapshot)}</div>
-        </div>`;
+        const dateGroup = document.createElement('div');
+        dateGroup.className = 'column-date-group';
 
-      // Click / keyboard handler
-      const openHandler = () => {
-        if (evt.type === 'transfer') openSimulationDialog(evt.id);
-        else openEventDialog(evt.id);
-      };
-      card.addEventListener('click', openHandler);
-      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHandler(); } });
+        const dateHeader = document.createElement('div');
+        dateHeader.className = `column-date-header ${day.isToday ? 'today' : ''}`;
+        dateHeader.innerHTML = `
+          <span class="column-date-dot"></span>
+          <strong>${formatDateJP(day.date, day.isToday)}</strong>
+        `;
+        dateGroup.appendChild(dateHeader);
 
-      dateGroup.appendChild(card);
+        // Render each filtered event card
+        for (const evt of colEvents) {
+          const card = document.createElement('div');
+          
+          // Determine warning class for negative balances on this account
+          let isInsufficient = false;
+          let warningMsg = '';
+
+          if (evt.type === 'transfer' && evt.fromAccountId === acc.id) {
+            isInsufficient = evt.isInsufficient;
+            warningMsg = evt.warningMsg;
+          } else if (evt.type === 'expense') {
+            isInsufficient = evt.isInsufficient;
+            warningMsg = evt.warningMsg;
+          } else if (evt.type === 'credit_bill') {
+            isInsufficient = evt.isInsufficient;
+            warningMsg = evt.warningMsg;
+          }
+
+          card.className = `timeline-event-card${isInsufficient ? ' alert-card' : ''}`;
+          card.setAttribute('role', 'button');
+          card.setAttribute('tabindex', '0');
+
+          let displayName = evt.name;
+          let displayFlow = '';
+          let displayAmount = evt.amount;
+          let amountSign = '-';
+          let typeClass = 'expense';
+          let icon = '📉';
+
+          if (evt.type === 'income') {
+            icon = '💰';
+            typeClass = 'income';
+            amountSign = '+';
+            displayFlow = `入金 ➔ ${escapeHtml(acc.name)}`;
+          } else if (evt.type === 'reimbursement') {
+            icon = '💼';
+            typeClass = 'income';
+            amountSign = '+';
+            const targetMonthText = evt.reimbursementMonth ? ` [${evt.reimbursementMonth.replace('-', '年')}月分]` : '';
+            displayName = `${evt.name}${targetMonthText}`;
+            displayFlow = `経費立替回収 ➔ ${escapeHtml(acc.name)}`;
+          } else if (evt.type === 'expense') {
+            icon = '📉';
+            typeClass = 'expense';
+            amountSign = '-';
+            displayFlow = `出金 ➔ ${escapeHtml(acc.name)}`;
+          } else if (evt.type === 'credit_bill') {
+            icon = '💳';
+            typeClass = 'credit';
+            amountSign = '-';
+            const cardAcc = state.accounts.find(a => a.id === evt.accountId);
+            const cardName = cardAcc ? cardAcc.name : 'クレジットカード';
+            displayName = `${cardName}引き落とし`;
+            displayFlow = `カード: ${escapeHtml(cardName)} ➔ 引落元: ${escapeHtml(acc.name)}`;
+          } else if (evt.type === 'transfer') {
+            icon = '🔄';
+            typeClass = 'transfer';
+            if (evt.fromAccountId === acc.id) {
+              amountSign = '-';
+              displayFlow = `資金移動 ➔ ${escapeHtml(getAccountName(evt.toAccountId))}`;
+            } else {
+              amountSign = '+';
+              typeClass = 'income'; // Render positive on the receiving side
+              displayFlow = `${escapeHtml(getAccountName(evt.fromAccountId))} ➔ 資金移動`;
+            }
+          }
+
+          const warnClass = isInsufficient ? 'event-account-flow warning' : 'event-account-flow';
+          const warnSuffix = isInsufficient ? ` (${warningMsg})` : '';
+          const balSnapshot = evt.balancesSnapshot[acc.id] || 0;
+
+          card.innerHTML = `
+            <div class="event-card-left">
+              <div class="event-icon-badge ${typeClass}">${icon}</div>
+              <div class="event-info-wrapper">
+                <span class="event-title">${escapeHtml(displayName)}</span>
+                <span class="event-account-flow">${displayFlow}</span>
+                <span class="${warnClass}">口座残高: ${formatCurrency(balSnapshot)}${warnSuffix}</span>
+              </div>
+            </div>
+            <div class="event-card-right">
+              <span class="event-amount ${typeClass}">${amountSign}${displayAmount.toLocaleString()}円</span>
+            </div>
+          `;
+
+          // Handle click/keyboard to edit dialog
+          const openHandler = () => {
+            if (evt.type === 'transfer') openSimulationDialog(evt.id);
+            else openEventDialog(evt.id);
+          };
+          card.addEventListener('click', openHandler);
+          card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHandler(); } });
+
+          dateGroup.appendChild(card);
+        }
+
+        // Show the day's ending balance for this account
+        const dayBal = day.balances[acc.id] || 0;
+        const summary = document.createElement('div');
+        summary.className = 'timeline-date-summary';
+        summary.textContent = `残高: ${formatCurrency(dayBal)}`;
+        dateGroup.appendChild(summary);
+
+        colTimeline.appendChild(dateGroup);
+      }
     }
 
-    // Day summary
-    const summary = document.createElement('div');
-    summary.className = 'timeline-date-summary';
-    summary.textContent = `予測総手元資金: ${formatCurrency(day.totalAssets)}`;
-    dateGroup.appendChild(summary);
+    if (!hasColEvents) {
+      colTimeline.innerHTML = `
+        <div class="glass-panel" style="text-align:center;padding:24px 12px;color:var(--text-secondary);font-size:12px;">
+          <p>表示期間内の予定はありません</p>
+        </div>`;
+    }
 
-    fragment.appendChild(dateGroup);
+    column.appendChild(colTimeline);
+    fragment.appendChild(column);
   }
 
   container.appendChild(fragment);
-}
-
-/** Compute icon, typeClass, flowText for timeline event display */
-function getEventDisplay(evt) {
-  let icon = '💸', typeClass = 'expense', flowText = '';
-
-  switch (evt.type) {
-    case 'income':
-      icon = '💰'; typeClass = 'income';
-      flowText = `➔ ${getAccountName(evt.accountId)}`;
-      break;
-    case 'reimbursement':
-      icon = '💼'; typeClass = 'income';
-      flowText = `立替経費入金 ➔ ${getAccountName(evt.accountId)}`;
-      break;
-    case 'expense':
-      icon = '📉'; typeClass = 'expense';
-      flowText = `➔ ${getAccountName(evt.accountId)}`;
-      break;
-    case 'credit_bill': {
-      icon = '💳'; typeClass = 'credit';
-      const cardAcc = state.accounts.find(a => a.id === evt.accountId);
-      flowText = cardAcc?.linkedAccountId
-        ? `引落元: ${getAccountName(cardAcc.linkedAccountId)}`
-        : `対象カード: ${cardAcc?.name || '不明'}`;
-      break;
-    }
-    case 'transfer':
-      icon = '🔄'; typeClass = 'transfer';
-      flowText = `${getAccountName(evt.fromAccountId)} ➔ ${getAccountName(evt.toAccountId)}`;
-      break;
-  }
-
-  return { icon, typeClass, flowText };
-}
-
-/** Build balance display HTML for a timeline event */
-function getBalanceDisplayHtml(evt) {
-  const warnClass = evt.isInsufficient ? 'event-account-flow warning' : 'event-account-flow';
-  const warnSuffix = evt.isInsufficient ? ` (${evt.warningMsg})` : '';
-
-  if (evt.type === 'transfer') {
-    const fromBal = evt.balancesSnapshot[evt.fromAccountId] || 0;
-    const toBal   = evt.balancesSnapshot[evt.toAccountId] || 0;
-    return `<span class="${warnClass}">移動元残高: ${formatCurrency(fromBal)} | 移動先: ${formatCurrency(toBal)}${warnSuffix}</span>`;
-  }
-
-  if (evt.type === 'credit_bill') {
-    const cardAcc = state.accounts.find(a => a.id === evt.accountId);
-    if (cardAcc?.linkedAccountId) {
-      const afterBal = evt.balancesSnapshot[cardAcc.linkedAccountId] || 0;
-      return `<span class="${warnClass}">${getAccountName(cardAcc.linkedAccountId)}残高: ${formatCurrency(afterBal)}${warnSuffix}</span>`;
-    }
-    return '';
-  }
-
-  // income / expense / reimbursement
-  const afterBal = evt.balancesSnapshot[evt.accountId] || 0;
-  return `<span class="${warnClass}">${getAccountName(evt.accountId)}残高: ${formatCurrency(afterBal)}${warnSuffix}</span>`;
 }
 
 // --- UI: Accounts Screen -------------------------------------------------
@@ -640,51 +702,7 @@ function renderAccounts() {
   container.appendChild(fragment);
 }
 
-// --- UI: Simulations List ------------------------------------------------
 
-function renderSimulations() {
-  const container = document.getElementById('simulations-list');
-  container.innerHTML = '';
-
-  if (state.simulations.length === 0) {
-    container.innerHTML = `
-      <div class="glass-panel" style="text-align:center;padding:40px;color:var(--text-secondary);">
-        <p style="font-size:24px;margin-bottom:8px;">🔄</p>
-        <p>シミュレーションが登録されていません</p>
-      </div>`;
-    return;
-  }
-
-  const fragment = document.createDocumentFragment();
-
-  for (const sim of state.simulations) {
-    const card = document.createElement('div');
-    card.className = 'sim-card';
-    card.setAttribute('role', 'button');
-    card.setAttribute('tabindex', '0');
-
-    card.innerHTML = `
-      <div class="sim-left">
-        <div class="sim-flow-badge">🔄</div>
-        <div class="sim-details">
-          <span class="sim-path">${escapeHtml(getAccountName(sim.fromAccountId))} ➔ ${escapeHtml(getAccountName(sim.toAccountId))}</span>
-          <span class="sim-meta">移動日: ${sim.date} ${sim.isRecurring ? '(毎月)' : '(一回のみ)'}</span>
-        </div>
-      </div>
-      <div class="sim-right">
-        <span class="sim-amount">${formatCurrency(sim.amount)}</span>
-        <span class="sim-edit-label">編集 ➔</span>
-      </div>`;
-
-    const handler = () => openSimulationDialog(sim.id);
-    card.addEventListener('click', handler);
-    card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handler(); } });
-
-    fragment.appendChild(card);
-  }
-
-  container.appendChild(fragment);
-}
 
 // --- UI: Reimbursements List ---------------------------------------------
 
@@ -796,7 +814,6 @@ function renderApp() {
   renderTrendChart(data.dailyTimeline);
   renderTimeline(data.groupedTimeline);
   renderAccounts();
-  renderSimulations();
   renderReimbursements();
 }
 

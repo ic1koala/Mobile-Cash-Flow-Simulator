@@ -127,20 +127,20 @@ body {
   left: 0;
   right: 0;
   height: calc(60px + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom); /* Restrict safe area to bottom padding only */
   background-color: var(--bg-header);
   border-top: 1px solid var(--border-color);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   display: flex;
   justify-content: space-around;
-  align-items: stretch; /* Stretch tab-items to occupy full height */
+  align-items: center; /* Center items vertically */
   z-index: 100;
 }
 
 .tab-item {
   flex: 1;
-  /* height: 60px; (Removed to let it stretch to full container height) */
-  padding-bottom: var(--safe-bottom); /* Move safe area padding here to extend tap target to the screen bottom */
+  height: 60px; /* Reverted to 60px fixed height to prevent vertical tap-target stretching/mismatch */
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1345,4 +1345,158 @@ dialog.bottom-sheet .row-title {
   width: 18px;
   height: 18px;
 }
+
+/* --- Multi-Column (Account-based) Timeline Layout --- */
+.timeline-columns-container {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 24px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  /* Add smooth padding for bottom-sheet overlaps */
+  padding-right: 16px;
+}
+
+/* Slim horizontal scrollbar */
+.timeline-columns-container::-webkit-scrollbar { height: 6px; }
+.timeline-columns-container::-webkit-scrollbar-track { background: transparent; }
+.timeline-columns-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+.timeline-column {
+  flex: 0 0 88%;
+  max-width: 335px;
+  background-color: rgba(18, 24, 36, 0.35);
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  padding: 16px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-md);
+  height: fit-content;
+}
+
+@media (min-width: 768px) {
+  .timeline-columns-container {
+    overflow-x: visible;
+    flex-wrap: wrap;
+    scroll-snap-type: none;
+  }
+  .timeline-column {
+    flex: 1 1 300px;
+    max-width: none;
+  }
+}
+
+.column-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.column-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.column-balance {
+  font-family: 'Outfit', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-info);
+}
+
+.column-timeline {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding-left: 16px;
+  padding-bottom: 80px; /* Safe space to prevent FAB blocking */
+}
+
+.column-timeline::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 5px;
+  width: 2px;
+  background-color: var(--border-color);
+}
+
+.column-date-group {
+  margin-bottom: 12px;
+  position: relative;
+}
+
+.column-date-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background-color: var(--bg-surface);
+  padding: 2px 6px;
+  margin-left: -12px;
+  margin-bottom: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+}
+
+.column-date-dot {
+  position: absolute;
+  left: -14px;
+  top: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--text-muted);
+  border: 1.5px solid var(--bg-app);
+}
+
+.column-date-header.today .column-date-dot {
+  background-color: var(--color-primary);
+  box-shadow: 0 0 6px var(--color-primary);
+}
+
+.column-date-header.today {
+  border-color: rgba(59, 130, 246, 0.4);
+  color: var(--color-primary);
+}
+
+/* Column event card adjustments */
+.column-timeline .timeline-event-card {
+  margin-left: -8px;
+  padding: 10px;
+  margin-bottom: 6px;
+}
+
+.column-timeline .event-icon-badge {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
+.column-timeline .event-title {
+  font-size: 13px;
+}
+
+.column-timeline .event-amount {
+  font-size: 13px;
+}
+
 

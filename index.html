@@ -79,25 +79,10 @@
         </div>
       </div>
 
-      <!-- Merged Simulation Section -->
-      <div class="card-section">
-        <div class="section-header">
-          <h2>資金移動シミュレーション</h2>
-          <button class="primary-button compact" id="btn-add-simulation">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:12px;height:12px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-            追加
-          </button>
-        </div>
-        <p class="section-desc" style="margin-bottom: 8px;">日付を指定して、口座間で資金をシミュレーション移動させます。</p>
-        <div class="simulations-list" id="simulations-list">
-          <!-- Simulations generated dynamically -->
-        </div>
-      </div>
-
       <!-- Timeline Section -->
       <div class="card-section" id="screenshot-area">
         <div class="section-header">
-          <h2>時系列タイムライン</h2>
+          <h2>時系列タイムライン (口座別)</h2>
           <div class="filter-controls">
             <select id="timeline-range" aria-label="予測期間">
               <option value="30">30日分表示</option>
@@ -108,8 +93,8 @@
           </div>
         </div>
 
-        <div class="timeline" id="timeline-list">
-          <!-- Timeline events generated dynamically -->
+        <div class="timeline-columns-container" id="timeline-list">
+          <!-- Multi-column timeline generated dynamically -->
         </div>
       </div>
       

@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="オフラインで動作する個人キャッシュフロー管理・残高予測アプリ。口座残高やクレジット引き落としを時系列で可視化します。">
+  <meta name="theme-color" content="#090d16">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <title>残高予測キャッシュフロー</title>
+  
+  <!-- Google Fonts: Outfit & Noto Sans JP -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="app.css">
+  
+  <!-- html2canvas for Screenshot Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYcabqAlryyWjM68oIYLDyma75C5YFRw1xE7kB1XSsCwQReukHpyM3VmIaGnmJH+5eAVX8cKibceS+ySA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body class="dark-theme">
+  <!-- Dynamic Toast Notification -->
+  <div id="toast" class="toast" role="alert" aria-live="polite"></div>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <h1 id="app-title">キャッシュフロー</h1>
+    </div>
+  </header>
+
+  <!-- Main View Container -->
+  <main class="app-content">
+    
+    <!-- TAB 1: DASHBOARD (HOME) -->
+    <section id="tab-home" class="tab-view active">
+      <!-- Total Assets Overview Card -->
+      <div class="summary-card">
+        <div class="summary-label-row">
+          <div class="summary-label">総手元資金 (現在)</div>
+          <button id="btn-toggle-visibility" class="visibility-button" aria-label="残高の表示/非表示">
+            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <svg class="eye-off-icon hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+            </svg>
+          </button>
+        </div>
+        <div class="summary-value" id="total-assets-val">¥0</div>
+        <div class="summary-trend">
+          <span class="trend-icon">📈</span>
+          <span id="projected-trend-lbl">90日後の予測: ¥0</span>
+        </div>
+      </div>
+
+      <!-- Chart Section -->
+      <div class="card-section">
+        <div class="section-header">
+          <h2>残高推移予測 (90日間)</h2>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="chart-legend">
+              <span class="legend-dot current"></span>現在
+              <span class="legend-dot projected"></span>予測
+            </div>
+            <button id="btn-toggle-chart" class="icon-button compact-btn" aria-label="チャートをたたむ">
+              <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+            </button>
+          </div>
+        </div>
+        <div class="chart-container glass-panel" id="chart-wrapper">
+          <svg id="trend-chart" width="100%" height="160" viewBox="0 0 400 160" preserveAspectRatio="none">
+            <!-- Grid lines and Chart paths will be generated dynamically -->
+          </svg>
+        </div>
+      </div>
+
+      <!-- Merged Simulation Section -->
+      <div class="card-section">
+        <div class="section-header">
+          <h2>資金移動シミュレーション</h2>
+          <button class="primary-button compact" id="btn-add-simulation">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:12px;height:12px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+            追加
+          </button>
+        </div>
+        <p class="section-desc" style="margin-bottom: 8px;">日付を指定して、口座間で資金をシミュレーション移動させます。</p>
+        <div class="simulations-list" id="simulations-list">
+          <!-- Simulations generated dynamically -->
+        </div>
+      </div>
+
+      <!-- Timeline Section -->
+      <div class="card-section" id="screenshot-area">
+        <div class="section-header">
+          <h2>時系列タイムライン</h2>
+          <div class="filter-controls">
+            <select id="timeline-range" aria-label="予測期間">
+              <option value="30">30日分表示</option>
+              <option value="60">60日分表示</option>
+              <option value="90" selected>90日分表示</option>
+              <option value="180">180日分表示</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="timeline" id="timeline-list">
+          <!-- Timeline events generated dynamically -->
+        </div>
+      </div>
+      
+      <!-- Floating Action Button (FAB) for adding events -->
+      <button class="fab-button" id="fab-add-event" aria-label="予定を追加">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+      </button>
+    </section>
+
+    <!-- TAB 2: ACCOUNTS -->
+    <section id="tab-accounts" class="tab-view">
+      <div class="section-header">
+        <h2>口座・資産一覧</h2>
+        <button class="primary-button compact" id="btn-add-account">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+          追加
+        </button>
+      </div>
+
+      <!-- Account List Grid -->
+      <div class="accounts-grid" id="accounts-list">
+        <!-- Account cards generated dynamically -->
+      </div>
+    </section>
+
+    <!-- TAB 3: REIMBURSEMENT -->
+    <section id="tab-reimbursement" class="tab-view">
+      <div class="card-section">
+        <h2>経費立替入金予定の登録</h2>
+        
+        <button class="primary-button" id="btn-toggle-inline-form" style="width: 100%; margin-bottom: 16px;">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width:16px;height:16px;margin-right:6px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+          新しい立替予定を入力する
+        </button>
+
+        <div class="glass-panel reimbursement-form hidden" id="inline-form-container">
+          <form id="form-inline-reimbursement">
+            <div class="reimbursement-form-row">
+              <div class="form-group">
+                <label for="inline-reim-account-id">入金先口座</label>
+                <select id="inline-reim-account-id" required>
+                  <!-- Will be filled dynamically -->
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="inline-reim-month">入金対象月</label>
+                <input type="month" id="inline-reim-month" required>
+              </div>
+            </div>
+
+            <div class="reimbursement-form-row" style="margin-top: 8px;">
+              <div class="form-group">
+                <label for="inline-reim-day">入金日（選択）</label>
+                <select id="inline-reim-day" required>
+                  <option value="10">毎月10日</option>
+                  <option value="25">毎月25日</option>
+                  <option value="end">毎月末日</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="inline-reim-name">項目名</label>
+                <input type="text" id="inline-reim-name" placeholder="例: 5月分交通費, 出張宿泊費" required>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 8px;">
+              <label for="inline-reim-amount">金額</label>
+              <div class="currency-input-wrapper">
+                <span class="currency-symbol">¥</span>
+                <input type="number" id="inline-reim-amount" placeholder="0" min="0" max="99999999" required>
+              </div>
+            </div>
+
+            <div class="sheet-actions" style="margin-top: 16px;">
+              <button type="button" class="secondary-button" id="btn-cancel-inline-reimbursement">閉じる</button>
+              <button type="submit" class="primary-button" id="btn-add-inline-reimbursement">追加する</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="card-section">
+        <h2>経費立替入金予定一覧</h2>
+        <div class="reimbursements-list" id="reimbursements-list">
+          <!-- Reimbursement items generated dynamically -->
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: SETTINGS -->
+    <section id="tab-settings" class="tab-view">
+      <div class="card-section">
+        <h2>データ管理 & アクション</h2>
+        
+        <div class="settings-group glass-panel">
+          <button class="settings-row" id="btn-screenshot">
+            <span class="row-icon">📸</span>
+            <div class="row-content">
+              <span class="row-title">タイムラインを画像保存</span>
+              <span class="row-desc">タイムライン全体をスクショとして保存</span>
+            </div>
+            <span class="row-arrow">➔</span>
+          </button>
+          
+          <button class="settings-row" id="btn-backup-json">
+            <span class="row-icon">📤</span>
+            <div class="row-content">
+              <span class="row-title">バックアップ保存 (JSON)</span>
+              <span class="row-desc">入力データをファイルにエクスポートします</span>
+            </div>
+            <span class="row-arrow">➔</span>
+          </button>
+
+          <label class="settings-row" for="file-restore-json">
+            <span class="row-icon">📥</span>
+            <div class="row-content">
+              <span class="row-title">データ復元 (JSON)</span>
+              <span class="row-desc">保存したJSONファイルからデータを復元</span>
+            </div>
+            <input type="file" id="file-restore-json" accept=".json" style="display:none;">
+            <span class="row-arrow">➔</span>
+          </label>
+        </div>
+
+        <div class="settings-group glass-panel" style="margin-top: 20px;">
+          <button class="settings-row danger" id="btn-clear-data">
+            <span class="row-icon">⚠️</span>
+            <div class="row-content">
+              <span class="row-title">全データを初期化</span>
+              <span class="row-desc">登録されたすべてのデータを消去します</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <div class="card-section info-section">
+        <h2>セキュリティ & 仕様</h2>
+        <div class="glass-panel info-box">
+          <p><strong>🔒 ローカル完結・安全動作</strong></p>
+          <p>当アプリはデータをインターネット上のサーバー等へ一切送信しません。すべての登録データはお使いの端末（ブラウザの LocalStorage）にのみ保存されます。完全にオフラインで動作可能です。</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Navigation Tab Bar -->
+  <nav class="app-tabbar">
+    <button class="tab-item active" data-tab="tab-home">
+      <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>
+      <span class="tab-label">ホーム</span>
+    </button>
+    <button class="tab-item" data-tab="tab-accounts">
+      <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+      <span class="tab-label">口座・資産</span>
+    </button>
+
+    <button class="tab-item" data-tab="tab-reimbursement">
+      <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 14.15v4.25c0 .621-.504 1.125-1.125 1.125H4.875c-.621 0-1.125-.504-1.125-1.125v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.453.25-.718.25H4.875a1.03 1.03 0 01-.718-.25m16.5 0a2.18 2.18 0 01.75 1.661v3.551c0 .621-.504 1.125-1.125 1.125H4.875c-.621 0-1.125-.504-1.125-1.125v-3.551c0-.621.504-1.125 1.125-1.125h14.25z" />
+      </svg>
+      <span class="tab-label">経費立替</span>
+    </button>
+
+    <button class="tab-item" data-tab="tab-settings">
+      <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.43l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.991l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.28z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+      <span class="tab-label">設定</span>
+    </button>
+  </nav>
+
+  <!-- DIALOG 1: ADD/EDIT ACCOUNT (Bottom Sheet) -->
+  <dialog id="dlg-account" closedby="any" class="bottom-sheet" aria-labelledby="dlg-account-title">
+    <div class="sheet-indicator"></div>
+    <form method="dialog" id="form-account">
+      <h3 id="dlg-account-title" class="sheet-title">口座の追加</h3>
+      
+      <div class="form-group">
+        <label for="acc-type">口座種別</label>
+        <select id="acc-type" required>
+          <option value="deposit">預金口座 (銀行口座)</option>
+          <option value="credit">クレジットカード</option>
+          <option value="cash">現金</option>
+          <option value="other">その他 (電子マネー・証券等)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="acc-name">口座・資産名</label>
+        <input type="text" id="acc-name" placeholder="例: 三井住友銀行, JCBカード" required>
+      </div>
+
+      <div class="form-group" id="grp-acc-balance">
+        <label for="acc-balance">現時点の残高・手持ち金額</label>
+        <div class="currency-input-wrapper">
+          <span class="currency-symbol">¥</span>
+          <input type="number" id="acc-balance" value="0" placeholder="0" min="-99999999" max="99999999">
+        </div>
+      </div>
+
+      <div class="form-group hidden" id="grp-acc-link">
+        <label for="acc-linked-id">引き落とし口座の紐付け</label>
+        <select id="acc-linked-id">
+          <option value="">(紐付けなし)</option>
+          <!-- Will be filled with deposit/cash accounts -->
+        </select>
+        <span class="input-tip">※カード引き落とし日に自動でこの口座から引かれます。</span>
+      </div>
+
+      <div class="form-group hidden" id="grp-acc-billing-day">
+        <label for="acc-billing-day">引き落とし日 (日のみ指定)</label>
+        <input type="number" id="acc-billing-day" min="1" max="31" placeholder="例: 27">
+        <span class="input-tip">※毎月何日に口座振替引き落としが行われるか（1〜31の数字で設定）。</span>
+      </div>
+
+      <input type="hidden" id="acc-id">
+
+      <div class="sheet-actions">
+        <button type="button" class="secondary-button" id="btn-cancel-account">キャンセル</button>
+        <button type="submit" class="primary-button" id="btn-save-account">保存する</button>
+      </div>
+      
+      <button type="button" class="danger-button hidden" id="btn-delete-account" style="margin-top: 12px; width: 100%;">
+        この口座を削除する
+      </button>
+    </form>
+  </dialog>
+
+  <!-- DIALOG 2: ADD/EDIT EVENT (Bottom Sheet) -->
+  <dialog id="dlg-event" closedby="any" class="bottom-sheet" aria-labelledby="dlg-event-title">
+    <div class="sheet-indicator"></div>
+    <form method="dialog" id="form-event">
+      <h3 id="dlg-event-title" class="sheet-title">予定の追加</h3>
+
+      <div class="form-group">
+        <label for="evt-type">予定種別</label>
+        <select id="evt-type" required>
+          <option value="expense">支出 (その他支払い)</option>
+          <option value="credit_bill">クレジットカード引き落とし</option>
+          <option value="income">入金予定 (給与など)</option>
+          <option value="reimbursement">経費立替入金予定</option>
+        </select>
+      </div>
+
+      <!-- Date Input (optimized for mobile datepicker) -->
+      <div class="form-group" id="grp-evt-date">
+        <label for="evt-date">日付 / 引き落とし日</label>
+        <input type="date" id="evt-date" required>
+      </div>
+
+      <!-- Reimbursement Custom Inputs -->
+      <div class="form-group hidden" id="grp-evt-reimbursement-month">
+        <label for="evt-reimbursement-month">入金対象月</label>
+        <input type="month" id="evt-reimbursement-month">
+      </div>
+
+      <div class="form-group hidden" id="grp-evt-reimbursement-day">
+        <label for="evt-reimbursement-day">入金日（選択）</label>
+        <select id="evt-reimbursement-day">
+          <option value="10">毎月10日</option>
+          <option value="25">毎月25日</option>
+          <option value="end">毎月末日</option>
+        </select>
+      </div>
+
+      <div class="form-group hidden" id="grp-evt-card">
+        <label for="evt-card-id">対象クレジットカード</label>
+        <select id="evt-card-id">
+          <!-- Will be filled with credit card accounts -->
+        </select>
+      </div>
+
+      <div class="form-group" id="grp-evt-account">
+        <label for="evt-account-id" id="lbl-evt-account-id">対象口座</label>
+        <select id="evt-account-id">
+          <!-- Will be filled with deposit/cash accounts -->
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="evt-name">項目名</label>
+        <input type="text" id="evt-name" placeholder="例: 給料, マンション賃料, 5月分支払" required>
+      </div>
+
+      <div class="form-group">
+        <label for="evt-amount">金額</label>
+        <div class="currency-input-wrapper">
+          <span class="currency-symbol">¥</span>
+          <input type="number" id="evt-amount" placeholder="0" min="0" max="99999999" required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="evt-recurring">繰り返し設定</label>
+        <select id="evt-recurring">
+          <option value="none">1回のみ</option>
+          <option value="monthly">毎月 (同日に発生)</option>
+        </select>
+      </div>
+
+      <input type="hidden" id="evt-id">
+
+      <div class="sheet-actions">
+        <button type="button" class="secondary-button" id="btn-cancel-event">キャンセル</button>
+        <button type="submit" class="primary-button" id="btn-save-event">保存する</button>
+      </div>
+
+      <button type="button" class="danger-button hidden" id="btn-delete-event" style="margin-top: 12px; width: 100%;">
+        この予定を削除する
+      </button>
+    </form>
+  </dialog>
+
+  <!-- DIALOG 3: ADD/EDIT SIMULATION (Bottom Sheet) -->
+  <dialog id="dlg-simulation" closedby="any" class="bottom-sheet" aria-labelledby="dlg-sim-title">
+    <div class="sheet-indicator"></div>
+    <form method="dialog" id="form-simulation">
+      <h3 id="dlg-sim-title" class="sheet-title">資金移動シミュレーションの追加</h3>
+
+      <div class="form-group">
+        <label for="sim-date">移動日</label>
+        <input type="date" id="sim-date" required>
+      </div>
+
+      <div class="form-group">
+        <label for="sim-from">移動元 (口座A)</label>
+        <select id="sim-from" required>
+          <!-- Will be filled with bank/cash accounts -->
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="sim-to">移動先 (口座B)</label>
+        <select id="sim-to" required>
+          <!-- Will be filled with bank/cash accounts -->
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="sim-amount">金額</label>
+        <div class="currency-input-wrapper">
+          <span class="currency-symbol">¥</span>
+          <input type="number" id="sim-amount" placeholder="0" min="1" max="99999999" required>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="sim-recurring">繰り返し設定</label>
+        <select id="sim-recurring">
+          <option value="none">1回のみ</option>
+          <option value="monthly">毎月 (同日に移動)</option>
+        </select>
+      </div>
+
+      <input type="hidden" id="sim-id">
+
+      <div class="sheet-actions">
+        <button type="button" class="secondary-button" id="btn-cancel-sim">キャンセル</button>
+        <button type="submit" class="primary-button" id="btn-save-sim">保存する</button>
+      </div>
+
+      <button type="button" class="danger-button hidden" id="btn-delete-sim" style="margin-top: 12px; width: 100%;">
+        このシミュレーションを削除する
+      </button>
+    </form>
+  </dialog>
+
+  <!-- DIALOG 4: FAB ADD MENU (Tap/Long Press Selector Sheet) -->
+  <dialog id="dlg-fab-menu" closedby="any" class="bottom-sheet" aria-labelledby="dlg-fab-title">
+    <div class="sheet-indicator"></div>
+    <form method="dialog" id="form-fab-menu">
+      <h3 id="dlg-fab-title" class="sheet-title">新規追加</h3>
+      
+      <div class="settings-group glass-panel">
+        <button type="button" class="settings-row" id="menu-btn-add-event">
+          <span class="row-icon">📅</span>
+          <div class="row-content">
+            <span class="row-title">予定を追加（支出・入金）</span>
+            <span class="row-desc">毎月の給料や各種お支払いなどを登録</span>
+          </div>
+        </button>
+        <button type="button" class="settings-row" id="menu-btn-add-sim">
+          <span class="row-icon">🔄</span>
+          <div class="row-content">
+            <span class="row-title">資金移動シミュレーション</span>
+            <span class="row-desc">口座間の資金移動シミュレーションを追加</span>
+          </div>
+        </button>
+        <button type="button" class="settings-row" id="menu-btn-add-reimbursement">
+          <span class="row-icon">💼</span>
+          <div class="row-content">
+            <span class="row-title">経費立替入金予定</span>
+            <span class="row-desc">立替えた経費の回収予定日（10日/25日/月末）を設定</span>
+          </div>
+        </button>
+      </div>
+
+      <button type="button" class="secondary-button" id="btn-cancel-fab-menu" style="width: 100%; margin-top: 16px;">
+        閉じる
+      </button>
+    </form>
+  </dialog>
+
+  <!-- JS Entry File -->
+  <script src="app.js"></script>
+</body>
+</html>

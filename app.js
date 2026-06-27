@@ -1383,8 +1383,10 @@ document.getElementById('btn-cancel-fab-menu').addEventListener('click', () => d
 
 // --- Other Button Bindings -----------------------------------------------
 
-document.getElementById('btn-add-account').addEventListener('click', () => openAccountDialog());
-document.getElementById('btn-add-simulation').addEventListener('click', () => openSimulationDialog());
+const btnAddAccount = document.getElementById('btn-add-account');
+if (btnAddAccount) {
+  btnAddAccount.addEventListener('click', () => openAccountDialog());
+}
 
 // --- Inline Reimbursement Form submission -------------------------------
 
@@ -1448,12 +1450,18 @@ window.addEventListener('DOMContentLoaded', () => {
   initTabs();
 
   // Restore UI state
-  document.querySelector('.eye-icon').classList.toggle('hidden', state.hideBalance);
-  document.querySelector('.eye-off-icon').classList.toggle('hidden', !state.hideBalance);
+  const eyeIcon = document.querySelector('.eye-icon');
+  const eyeOffIcon = document.querySelector('.eye-off-icon');
+  if (eyeIcon && eyeOffIcon) {
+    eyeIcon.classList.toggle('hidden', state.hideBalance);
+    eyeOffIcon.classList.toggle('hidden', !state.hideBalance);
+  }
 
   if (state.chartCollapsed) {
-    document.getElementById('chart-wrapper').classList.add('collapsed');
-    document.querySelector('#btn-toggle-chart .chevron-icon').classList.add('rotated');
+    const chartWrapper = document.getElementById('chart-wrapper');
+    if (chartWrapper) chartWrapper.classList.add('collapsed');
+    const chevronIcon = document.querySelector('#btn-toggle-chart .chevron-icon');
+    if (chevronIcon) chevronIcon.classList.add('rotated');
   }
 
   // Initialize inline month input to current month

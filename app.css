@@ -134,7 +134,7 @@ body {
   -webkit-backdrop-filter: var(--glass-blur);
   display: flex;
   justify-content: space-around;
-  align-items: center; /* Center items vertically */
+  align-items: flex-start; /* Anchor items to the top to match tap area with visuals */
   z-index: 100;
 }
 

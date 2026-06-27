@@ -127,15 +127,20 @@ function seedDefaultData() {
 // --- Persistence ---------------------------------------------------------
 
 function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
-  if (raw === null) {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.ACCOUNTS);
+    if (raw === null) {
+      seedDefaultData();
+    } else {
+      state.accounts    = JSON.parse(raw || '[]');
+      state.events      = JSON.parse(localStorage.getItem(STORAGE_KEYS.EVENTS) || '[]');
+      state.simulations = JSON.parse(localStorage.getItem(STORAGE_KEYS.SIMULATIONS) || '[]');
+      state.hideBalance = localStorage.getItem(STORAGE_KEYS.HIDE_BALANCE) === 'true';
+      state.chartCollapsed = localStorage.getItem(STORAGE_KEYS.CHART_COLLAPSED) === 'true';
+    }
+  } catch (err) {
+    console.error('Failed to load state from localStorage, falling back to default seed data:', err);
     seedDefaultData();
-  } else {
-    state.accounts    = JSON.parse(raw || '[]');
-    state.events      = JSON.parse(localStorage.getItem(STORAGE_KEYS.EVENTS) || '[]');
-    state.simulations = JSON.parse(localStorage.getItem(STORAGE_KEYS.SIMULATIONS) || '[]');
-    state.hideBalance = localStorage.getItem(STORAGE_KEYS.HIDE_BALANCE) === 'true';
-    state.chartCollapsed = localStorage.getItem(STORAGE_KEYS.CHART_COLLAPSED) === 'true';
   }
 }
 

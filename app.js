@@ -215,10 +215,11 @@ function generateTimelineData(daysToProject = 90) {
   }
 
   for (const sim of state.simulations) {
+    const simWithType = { ...sim, type: 'transfer' };
     if (sim.isRecurring && sim.recurrence === 'monthly') {
-      rawEvents.push(...projectMonthlyRecurring(sim, todayStr, endStr));
+      rawEvents.push(...projectMonthlyRecurring(simWithType, todayStr, endStr));
     } else if (sim.date >= todayStr && sim.date <= endStr) {
-      rawEvents.push({ ...sim, type: 'transfer' });
+      rawEvents.push(simWithType);
     }
   }
 
